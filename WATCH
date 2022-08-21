@@ -1,0 +1,127 @@
+*
+    GIT.FILENAME = 'WATCH'
+    GIT.REPO = 'https://github.com/Krowemoh/watch-basic.git'
+*
+* COMPILER DIRECTIVES
+*
+    $DEFINE DATABASE.UV
+    $DEFINE PLATFORM.LINUX
+*
+*ASI********************************************************************
+*                                                                      *
+* Copyright 2022 - Asynchron Systems Inc.                              *
+*                                                                      *
+* THIS PROGRAM IS THE EXCLUSIVE PROPERTY OF ASYNCHRON SYSTEMS INC. IT  *
+* MAY NOT BE USED, SOLD, DISTRIBUTED OR REPRODUCED BY ANY MEANS WITHOUT*
+* THE EXPRESS WRITTEN CONSENT OF ASYNCHRON SYSTEMS INC.                *
+*                                                                      *
+* Create Date  Req#  Who  Description                                  *
+* 21 AUG 2022  N/A   NT   Watch Files and Compile                      *
+*                                                                      *
+************************************************************************
+* Special Instructions                                                 *
+*                                                                      *
+************************************************************************
+* Change History                                                       *
+*                                                                      *
+* Change Date  Req#  Who  Description                                  *
+*                                                                      *
+************************************************************************
+*
+    EQU TRUE TO 1
+    EQU FALSE TO 0
+*
+* INITIALIZE SCREEN CLEARING
+*
+    CLEAR.SCREEN = @(-1)
+    CLEAR.REST.OF.SCREEN = @(-3)
+    CLEAR.REST.OF.LINE = @(-4)
+    CLEAR.LINE = @(0) : CLEAR.REST.OF.LINE
+*
+    COMMAND = SENTENCE()
+*
+    COMMAND = COMMAND[7,999]
+*
+    IF COMMAND # '' THEN
+        PRINT 'Started watch of: ' : COMMAND
+*
+        RECORD.IDS = ''
+        ORIGINAL.RECORDS = ''
+        FILENAMES = ''
+*
+        FOR I = 1 TO DCOUNT(COMMAND,',')
+            FILENAME = FIELD(TRIM(FIELD(COMMAND,',',I)),' ',1)
+            RECORD.ID = FIELD(TRIM(FIELD(COMMAND,',',I)),' ',2)
+*
+            OPEN '',FILENAME TO FILE THEN
+                READ RECORD FROM FILE,RECORD.ID ELSE RECORD = ''
+*
+                RECORD.IDS<I> = RECORD.ID
+                FILENAMES<I> = FILENAME
+*
+                $IFDEF DATABASE.UV
+                    LOWERED.RECORD = LOWER(ORIGINAL.RECORDS<I>)
+                $ENDIF
+*
+                $IFDEF DATABASE.D3
+                    LOWERED.RECORD = ORIGINAL.RECORDS<I>
+                    CONVERT @AM:@VM:@SVM:@TM TO @VM:@SVM:@TM:@STM IN LOWERED.RECORD
+                $ENDIF
+*
+                ORIGINAL.RECORDS<I> = LOWERED.RECORD
+*
+            END ELSE
+                PRINT 'Unable to open file: ' : FILENAME
+            END
+        NEXT I
+*
+        ERROR.TRIGGERED = FALSE
+        LOOP WHILE TRUE DO
+            SLEEP 1
+*
+            FOR I = 1 TO DCOUNT(RECORD.IDS,@AM)
+                IF FILENAMES<I> = '' THEN
+                    CONTINUE
+                END
+*
+                OPEN '',FILENAME TO FILE ELSE
+                    CONTINUE
+                END
+*
+                READ RECORD FROM FILE,RECORD.IDS<I> ELSE RECORD = ''
+*
+                $IFDEF DATABASE.UV
+                    LOWERED.RECORD = LOWER(RECORD)
+                $ENDIF
+*
+                $IFDEF DATABASE.D3
+                    LOWERED.RECORD = RECORD
+                    CONVERT @AM:@VM:@SVM:@TM TO @VM:@SVM:@TM:@STM IN LOWERED.RECORD
+                $ENDIF
+*
+                IF ORIGINAL.RECORDS<I> # LOWERED.RECORD THEN
+                    ORIGINAL.RECORDS<I> = LOWERED.RECORD
+                    EXECUTE 'BASIC ' : FILENAMES<I> : ' ' : RECORD.IDS<I> CAPTURING RESULTS
+*
+                    IF RESULTS<3> = '' THEN
+                        IF ERROR.TRIGGERED THEN
+                            PRINT CLEAR.SCREEN :
+                            ERROR.TRIGGERED = FALSE
+                        END
+                        PRINT OCONV(TIME(),'MTS') : ': ' : RESULTS<1>
+                    END ELSE
+                        ERROR.TRIGGERED = TRUE
+                        PRINT CLEAR.SCREEN :
+                        PRINT OCONV(TIME(),'MTS') : ': ' :
+                        PRINT 'Error -----------------'
+                        PRINT
+                        FOR J = 1 TO DCOUNT(RESULTS,@AM)
+                            PRINT RESULTS<J>
+                        NEXT J
+                    END
+                END
+            NEXT I
+*
+        REPEAT
+    END
+*
